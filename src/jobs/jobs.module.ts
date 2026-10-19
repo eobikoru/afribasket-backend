@@ -28,8 +28,9 @@ export function redisConnectionOptions(redisUrl: string) {
     host: parsed.hostname,
     port: Number(parsed.port || 6379),
     username: parsed.username || undefined,
-    password: parsed.password || undefined,
+    password: decodeURIComponent(parsed.password || '') || undefined,
     db: parsed.pathname && parsed.pathname.length > 1 ? Number(parsed.pathname.slice(1)) : 0,
+    ...(parsed.protocol === 'rediss:' ? { tls: {} } : {}),
     maxRetriesPerRequest: null,
   };
 }
