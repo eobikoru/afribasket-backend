@@ -62,6 +62,10 @@ export interface AppConfig {
   jobsEnabled: boolean;
 }
 
+function uniqueOrigins(values: string[]): string[] {
+  return [...new Set(values.map((origin) => origin.trim()).filter((origin) => origin.length > 0))];
+}
+
 export function buildConfig(env: Env = validateEnv(process.env)): AppConfig {
   const cloudinary =
     env.CLOUDINARY_CLOUD_NAME && env.CLOUDINARY_API_KEY && env.CLOUDINARY_API_SECRET
@@ -75,9 +79,10 @@ export function buildConfig(env: Env = validateEnv(process.env)): AppConfig {
   return {
     nodeEnv: env.NODE_ENV,
     port: env.PORT,
-    corsOrigins: env.CORS_ORIGINS.split(',')
-      .map((origin) => origin.trim())
-      .filter((origin) => origin.length > 0),
+    corsOrigins: uniqueOrigins([
+      ...env.CORS_ORIGINS.split(','),
+      'https://afrimarket-dashboard.vercel.app',
+    ]),
     bodyLimit: env.BODY_LIMIT,
     storefrontUrl: env.STOREFRONT_URL,
     databaseUrl: env.DATABASE_URL,
