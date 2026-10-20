@@ -25,13 +25,19 @@ export class ImageStorage {
       secure: true,
     });
     try {
-      const uploaded = await cloudinary.uploader.upload(`data:${mime};base64,${data.toString('base64')}`, {
-        folder: `afribasket/${folder}`,
-        resource_type: 'image',
+      const uploaded = await new Promise<{ secure_url: string; public_id: string }>((resolve, reject) => {
+        const stream = cloudinary.uploader.upload_stream(
+          { folder: `afribasket/${folder}`, resource_type: 'image' },
+          (error, result) => {
+            if (error || !result) reject(error ?? new Error('Cloudinary upload failed'));
+            else resolve(result);
+          },
+        );
+        stream.end(data);
       });
       return { url: uploaded.secure_url, publicId: uploaded.public_id };
-    } catch {
-      throw Errors.badRequest('Cloudinary could not accept that image');
+    } catch (error) {
+      throw Errors.badRequest(cloudinaryMessage(error) ?? 'Cloudinary could not accept that image');
     }
   }
 
@@ -58,6 +64,14 @@ export function detectImage(buffer: Buffer): 'image/jpeg' | 'image/png' | 'image
     return 'image/gif';
   }
   return null;
+}
+
+function cloudinaryMessage(error: unknown): string | null {
+  if (!error || typeof error !== 'object') return null;
+  const record = error as { message?: unknown; error?: { message?: unknown } };
+  const message = typeof record.message === 'string' ? record.message : record.error?.message;
+  if (typeof message !== 'string' || message.length === 0 || message.length > 180) return null;
+  return message;
 }
 
 function resolveImageMime(buffer: Buffer, hintedMime?: string): string | null {
