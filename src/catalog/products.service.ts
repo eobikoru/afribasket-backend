@@ -5,6 +5,7 @@ import { rethrowUnique } from '../common/prisma-errors';
 import { slugify } from '../common/slug';
 import { toOz } from '../common/weight';
 import { PrismaService } from '../prisma/prisma.service';
+import { sanitizeBlogHtml } from '../blog/sanitize';
 import { findAgeRestriction } from './age-restriction';
 import { deriveStock } from '../inventory/stock-status';
 import type { z } from 'zod';
@@ -346,7 +347,7 @@ export class ProductsService {
       sku: product.sku,
       barcode: product.barcode,
       shortDescription: product.shortDescription,
-      description: product.description,
+      description: presentDescription(product.description),
       brand: product.brand,
       countryOfOrigin: product.countryOfOrigin,
       region: product.region,
@@ -397,7 +398,7 @@ export class ProductsService {
       sku: input.sku,
       barcode: input.barcode,
       shortDescription: input.shortDescription,
-      description: input.description,
+      description: input.description === undefined ? undefined : richDescription(input.description),
       brand: input.brand,
       countryOfOrigin: input.countryOfOrigin,
       region: input.region,
@@ -441,4 +442,17 @@ export class ProductsService {
       isActive: input.isActive,
     };
   }
+}
+
+function presentDescription(value: string | null): string | null {
+  if (!value || !/<\/?[a-z][\s\S]*>/i.test(value)) return value;
+  const clean = sanitizeBlogHtml(value).trim();
+  return clean.length ? clean : null;
+}
+
+function richDescription(value: string | null): string | null {
+  if (value == null) return null;
+  if (!/<\/?[a-z][\s\S]*>/i.test(value)) return value;
+  const clean = sanitizeBlogHtml(value).trim();
+  return clean.length ? clean : null;
 }

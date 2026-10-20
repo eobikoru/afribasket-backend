@@ -187,7 +187,7 @@ export class AdminProductsController {
     @Body('altText') altText?: string,
   ) {
     if (!file) throw Errors.badRequest('Image file is required');
-    const stored = await this.images.upload(file.buffer, 'products');
+    const stored = await this.images.upload(file.buffer, 'products', file.mimetype);
     const image = await this.products.addImage(id, { ...stored, altText });
     await this.audit.record({ adminId: user.id, action: 'create', entityType: 'product_image', entityId: image.id });
     return image;
