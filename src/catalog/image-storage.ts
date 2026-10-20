@@ -13,22 +13,26 @@ export interface StoredImage {
 export class ImageStorage {
   constructor(private readonly config: ConfigService<AppConfig, true>) {}
 
-  async upload(data: Buffer, folder: string): Promise<StoredImage> {
+  async upload(data: Buffer, folder: string, hintedMime?: string): Promise<StoredImage> {
     const credentials = this.config.get('cloudinary', { infer: true });
     if (!credentials) throw Errors.unavailable('Image storage is not configured');
-    const mime = detectImage(data);
-    if (!mime) throw Errors.badRequest('Upload a JPEG, PNG, or WebP image');
+    const mime = resolveImageMime(data, hintedMime);
+    if (!mime) throw Errors.badRequest('Upload an image file');
     cloudinary.config({
       cloud_name: credentials.cloudName,
       api_key: credentials.apiKey,
       api_secret: credentials.apiSecret,
       secure: true,
     });
-    const uploaded = await cloudinary.uploader.upload(`data:${mime};base64,${data.toString('base64')}`, {
-      folder: `afribasket/${folder}`,
-      resource_type: 'image',
-    });
-    return { url: uploaded.secure_url, publicId: uploaded.public_id };
+    try {
+      const uploaded = await cloudinary.uploader.upload(`data:${mime};base64,${data.toString('base64')}`, {
+        folder: `afribasket/${folder}`,
+        resource_type: 'image',
+      });
+      return { url: uploaded.secure_url, publicId: uploaded.public_id };
+    } catch {
+      throw Errors.badRequest('Cloudinary could not accept that image');
+    }
   }
 
   async destroy(publicId: string): Promise<void> {
@@ -44,11 +48,22 @@ export class ImageStorage {
   }
 }
 
-export function detectImage(buffer: Buffer): 'image/jpeg' | 'image/png' | 'image/webp' | null {
+export function detectImage(buffer: Buffer): 'image/jpeg' | 'image/png' | 'image/webp' | 'image/gif' | null {
   if (buffer.length > 3 && buffer[0] === 0xff && buffer[1] === 0xd8) return 'image/jpeg';
   if (buffer.length > 8 && buffer.toString('ascii', 1, 4) === 'PNG') return 'image/png';
   if (buffer.length > 12 && buffer.toString('ascii', 0, 4) === 'RIFF' && buffer.toString('ascii', 8, 12) === 'WEBP') {
     return 'image/webp';
   }
+  if (buffer.length > 6 && (buffer.toString('ascii', 0, 6) === 'GIF87a' || buffer.toString('ascii', 0, 6) === 'GIF89a')) {
+    return 'image/gif';
+  }
   return null;
+}
+
+function resolveImageMime(buffer: Buffer, hintedMime?: string): string | null {
+  const detected = detectImage(buffer);
+  if (detected) return detected;
+  const hinted = hintedMime?.split(';')[0]?.trim().toLowerCase();
+  if (!hinted || hinted === 'image/svg+xml' || !/^image\/[a-z0-9.+-]+$/.test(hinted)) return null;
+  return hinted;
 }
